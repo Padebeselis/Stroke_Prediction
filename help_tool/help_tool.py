@@ -25,6 +25,7 @@ def csv_download(path: str) -> pd.DataFrame:
     """Download data and capitalize the column names."""
     df = pd.read_csv(path, index_col=False, header=0)
     df.columns=df.columns.str.capitalize()
+    #df.drop(columns=['Id'], inplace=True)
     return df
 
 
@@ -38,13 +39,11 @@ def first_look(df: pd.DataFrame) -> None:
 
 def dummy_columns(df, feature_list):
     """ Created a dummy and replaces the old feature with the new dummy """
-    df_dummies = pd.get_dummies(df[feature_list]
-                                )
+    df_dummies = pd.get_dummies(df[feature_list])
+    df_dummies=df_dummies.astype(int)
+
     df = pd.concat([df, df_dummies], axis=1)
     df.drop(columns=feature_list, inplace=True)
-
-    
-    df = df.astype(int)
 
     #Drop '_No' features and leave '_Yes'
     #Replace the original column with new dummy
