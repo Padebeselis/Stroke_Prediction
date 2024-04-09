@@ -15,7 +15,7 @@ from sklearn.metrics import (accuracy_score, auc, confusion_matrix, roc_curve)
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from unidecode import unidecode
 import textblob
-
+from sklearn.metrics import matthews_corrcoef
 
 pd.plotting.register_matplotlib_converters()
 
@@ -93,19 +93,39 @@ def heatmap(df: pd.DataFrame, name: str, method: str) -> None:
     plt.title(f'Correlation {name.capitalize()} Attributes')
     plt.show()
 
-def countplot_per_feature(df, feature_list, hue):
-    """ Countplot for 5 features """
-    fig, axes = plt.subplots(1, 5, figsize=(20, 3))  # Changed the number of columns to 5
+def countplot_per_feature(df, feature_list):
+    for i, feature_to_exclude in enumerate(feature_list):
+        features_subset = [feature for feature in feature_list if feature != feature_to_exclude]
 
-    palette = 'rocket'
+        """ Countplot for 5 features """
+        fig, axes = plt.subplots(1, len(feature_list)-1, figsize=(20, 3))  # Changed the number of columns to 5
 
-    for i, feature in enumerate(feature_list):
-        sns.countplot(data=df, x=feature, hue=hue, ax=axes[i], palette=palette)
-        axes[i].get_legend().remove()
+        palette = 'rocket'
 
-    plt.tight_layout()
-    plt.suptitle("Binary feature analysis", size=16, y=1.02)
-    plt.legend(title=hue, bbox_to_anchor=(1.05, 1), loc='upper left')
+        for i, feature in enumerate(features_subset):
+            sns.countplot(data=df, x=feature, hue=feature_to_exclude, ax=axes[i], palette=palette)
+            axes[i].get_legend().remove()
+            axes[i].tick_params(axis='x', rotation=45)
+
+        plt.tight_layout()
+        plt.suptitle("Binary feature analysis", size=16, y=1.02)
+        plt.legend(title=feature_to_exclude, bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.show()
+
+def phi_corr_matrix(df, feature_list):
+    """ Phi correlation for binary features"""
+    phi_corr_matrix = pd.DataFrame(index=feature_list, columns=feature_list)
+
+    for feature1 in feature_list:
+        for feature2 in feature_list:
+            phi_corr_matrix.loc[feature1, feature2] = matthews_corrcoef(
+                df[feature1], df[feature2])
+            
+    thresholded_matrix = phi_corr_matrix[(phi_corr_matrix <= (-1) * alpha) | (phi_corr_matrix >= alpha)]
+
+    sns.heatmap(thresholded_matrix.astype(float),
+                annot=True, annot_kws={"size": 8}, cmap='rocket', fmt=".2f")
+    plt.title(f'Phi correlation coefficient of Binary Attributes (Thresholds +/- {alpha})')
     plt.show()
 
 
