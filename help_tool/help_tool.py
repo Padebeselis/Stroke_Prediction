@@ -16,16 +16,19 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from unidecode import unidecode
 import textblob
 from sklearn.metrics import matthews_corrcoef
-
+from sklearn.metrics import recall_score
 pd.plotting.register_matplotlib_converters()
+from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict, GridSearchCV, KFold
 
+"""Statistics"""
+alpha = 0.05  # Significance level
+confidence_level = 0.95
 
 
 def csv_download(path: str) -> pd.DataFrame:
     """Download data and capitalize the column names."""
     df = pd.read_csv(path, index_col=False, header=0)
     df.columns=df.columns.str.capitalize()
-    #df.drop(columns=['Id'], inplace=True)
     return df
 
 
@@ -239,25 +242,25 @@ def confidence_intervals(data, type) -> None:
     print(f"Confidence Interval: [{lower_bound:.2f}, {upper_bound:.2f}]")
 
 
-def accuracy_score_test_val(model, X_train, y_train, X_validation, y_validation, weights_validation):
+def model_selection_recall(model, X_train, y_train, X_validation, y_validation):
     """Model Accuracy Score for test and validation data"""
 
-    n=2
+    n = 2
 
-    train = accuracy_score(model.predict(X_train), y_train)
-    validation = accuracy_score(model.predict(X_validation), y_validation, sample_weight=weights_validation)
-    print(f"Test data accuracy score: {round(train*100, n)}%")
-    print(f"Validation data accuracy score: {round(validation*100, n)}%")
+    train_recall = recall_score(model.predict(X_train), y_train)
+    validation_recall = recall_score(model.predict(X_validation), y_validation)
 
+    if hasattr(model, 'decision_function'):
+        y_prob = model.decision_function(X_validation)
+    else:
+        y_prob = model.predict_proba(X_validation)[:, 1]
 
+    fpr, tpr, _ = roc_curve(y_validation, y_prob)
+    roc_auc = auc(fpr, tpr)
 
-def accuracy_score_test(model, X, y, weights):
-    """Model Accuracy Score for test and validation data"""
-
-    n=2
-    score = accuracy_score(model.predict(X), y, sample_weight=weights)
-    return round(score*100, n)
-    #print(f"Accuracy score: {}%")
+    print(f"Train Recall: {train_recall:.{n}%}")
+    print(f"Validation Recall: {validation_recall:.{n}%}")
+    print(f"ROC AUC: {roc_auc:.2f}")
 
 
 
@@ -312,29 +315,6 @@ def confusion_matrix_visual(y_test, y_pred_rounded, new_labels: list) -> None:
     plt.show()
 
 
-def residual_plot(y_test, y_pred) -> None:
-    """Visualization for Residual Values"""
-    # Align indices of y_test and y_pred before calculating residuals
-    y_test_aligned = y_test.reset_index(drop=True)
-    y_pred_aligned = pd.Series(
-        y_pred, index=y_test.index).reset_index(drop=True)
-
-    residuals = y_test_aligned - y_pred_aligned
-
-    # Create a DataFrame combining fitted values and residuals
-    residual_df = pd.DataFrame(
-        {'Fitted Values': y_pred_aligned, 'Residuals': residuals})
-
-    # Residual plot
-    sns.scatterplot(x='Fitted Values', y='Residuals', data=residual_df)
-    plt.axhline(y=0, color='red', alpha=0.5, label='Residual Origin')
-    plt.xlabel('Predicted values')
-    plt.ylabel('Standartized Residuals')
-    plt.title('Residuals')
-    plt.legend(loc='upper right')
-
-    plt.show()
-
 
 def plot_roc_curve(model, X_train_scaled, y_train, label):
     """ ROC Curve plot"""
@@ -348,6 +328,78 @@ def plot_roc_curve(model, X_train_scaled, y_train, label):
 
     plt.plot(fpr, tpr, lw=2, label=f'{label} (AUC = {roc_auc:.2f})')
 
-"""Statistics"""
-alpha = 0.05  # Significance level
-confidence_level = 0.95
+
+def plot_roc_curve_many(models, labels, X_test, y_test):
+    """ Put many  ROC Curve plots into 1 gragh"""
+    for model, label in zip(models, labels):
+        plot_roc_curve(model, X_test, y_test, label)
+
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label='Random Guessing')
+    plt.xlabel('False Positive Rate (FPR)')
+    plt.ylabel('True Positive Rate (TPR)')
+    plt.title('Receiver Operating Characteristic (ROC) Curves for Different Models')
+    plt.legend(loc='lower right')
+    plt.show()
+
+
+def cross_validation_plots(classifiers, fold, X, y, metric):
+    """ Cross Validation visualisation"""
+
+    cv_results = []
+    for index, clf in enumerate(classifiers):
+        accuracy_scores = cross_val_score(clf, X, y, cv=fold, scoring='accuracy')
+        precision_scores = cross_val_score(clf, X, y, cv=fold, scoring='precision')
+        recall_scores = cross_val_score(clf, X, y, cv=fold, scoring='recall')
+        
+        cv_results.append({
+            'Classifier': classifiers[index].__class__.__name__,
+            'CV Mean Accuracy': np.mean(accuracy_scores),
+            'CV Mean Precision': np.mean(precision_scores),
+            'CV Mean Recall': np.mean(recall_scores),
+            'Std Accuracy': np.std(accuracy_scores),
+            'Accuracy': accuracy_scores.tolist(),
+            'Precision': precision_scores.tolist(),
+            'Recall': recall_scores.tolist()  
+        })
+
+    model_info = pd.DataFrame(cv_results)
+
+    # Recall boxplot
+    plt.subplots(figsize=(12, 6))
+    
+    box_data = [acc for acc in model_info[metric]]
+    plt.boxplot(box_data, labels=model_info['Classifier'], showfliers=False)
+
+    plt.xticks(rotation=45)
+    plt.title(f'{metric} by Classifier')
+    plt.ylabel(f'{metric}')
+    plt.show()
+
+    # Parameter heatmap
+    heatmap_data = model_info[['Classifier', 'CV Mean Accuracy', 'CV Mean Precision', 'CV Mean Recall']]
+
+    heatmap_data.set_index('Classifier', inplace=True)
+
+    sns.heatmap(heatmap_data, annot=True, cmap='coolwarm', fmt=".3f", linewidths=.5)
+    plt.title('Model Performance Metrics')
+    plt.show()
+
+
+
+def cross_validation_matrix(classifiers, classifier_names, X, y):
+    """ Cross Validation Matrix """
+    f, ax = plt.subplots(2, 4, figsize=(15, 6))
+    ax = ax.flatten()
+
+    # Iterate through classifiers and plot confusion matrices
+    for i, (classifier, classifier_name) in enumerate(zip(classifiers, classifier_names)):
+        y_pred = cross_val_predict(classifier, X, y, cv=10)
+        cm = confusion_matrix(y, y_pred)
+        sns.heatmap(cm, ax=ax[i], annot=True, fmt='2.0f')
+        ax[i].set_title(f'Matrix for {classifier_name}')
+        ax[i].set_xlabel('Predicted Label')
+        ax[i].set_ylabel('True Label')
+
+
+    plt.subplots_adjust(hspace=0.5, wspace=0.5)
+    plt.show()
