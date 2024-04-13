@@ -39,12 +39,11 @@ This analysis was conducted using Python 3.11. The following packages were utili
 
 * Pay attention to people in the older groups as 95% confidence interval for stroke events are prevalent for people in their 60s.
 * BMI > 33, smoking, heart disease and hypertention are an increased factors for stroke.
-* Merrital status is not an indicator for stroke.
+* Marital status is not an indicator for stroke.
 * Missing BMI paid a big role in Models performance. Missing BMI signals higher risk for stroke. Gathering data BMI could have had only 2 digits, Medical Institutions should update their BMI forms to 3 digits. 
 
 
 ## Future Work
-
 
 - Employing dimensionality reduction techniques like Principal Component Analysis (PCA) or t-Distributed Stochastic Neighbor Embedding (t-SNE) to condense the feature space and enhance interpretability.
 - Address class imbalance by utilizing other methods: Adaptive Synthetic Sampling (ADASYN), or weighted loss functions within models.

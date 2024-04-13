@@ -2,7 +2,7 @@
 FROM python:3.11-slim
 
 # Set the working directory
-WORKDIR /app
+WORKDIR /main
 
 # Copy the requirements file into the container
 COPY requirements.txt requirements.txt
@@ -12,7 +12,7 @@ RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 # Copy the application code into the container
-COPY ["model.pkl", "app.py", "./"] .
+COPY ["model.pkl", "main.py", "./"] .
 
 # Expose the app port
 EXPOSE 80
